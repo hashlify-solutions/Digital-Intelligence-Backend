@@ -293,7 +293,7 @@ async def setup_application():
         await setup_database()
 
         # Step 2: Download Hugging Face models
-        # await download_models()
+        await download_models()
 
         # Step 3: Check external models
         setup_external_models()
