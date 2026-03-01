@@ -1,0 +1,58 @@
+[
+  {
+    "_id": {
+      "$oid": "67eee6a8a00e02c688f62a7d"
+    },
+    "created_at": "2025-04-04T00:51:04.186400",
+    "model": "entity",
+    "name": "CAMeL-Lab/bert-base-arabic-camelbert-mix-ner",
+    "type": "token-classification",
+    "is_local": true,
+    "base_type": "entity"
+  },
+  {
+    "_id": {
+      "$oid": "67eee6a8a00e02c688f62a7b"
+    },
+    "created_at": "2025-04-04T00:51:04.186390",
+    "model": "embeddings",
+    "name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "type": "sentence-embeddings",
+    "is_local": true,
+    "embedding_size": 384,
+    "base_type": "embeddings"
+  },
+  {
+    "_id": {
+      "$oid": "67eee6a8a00e02c688f62a79"
+    },
+    "created_at": "2025-04-04T00:51:04.186363",
+    "model": "emotion",
+    "name": "cardiffnlp/twitter-xlm-roberta-base-sentiment",
+    "type": "sentiment-analysis",
+    "is_local": true,
+    "base_type": "emotion"
+  },
+  {
+    "_id": {
+      "$oid": "67eee6a8a00e02c688f62a7c"
+    },
+    "created_at": "2025-04-04T00:51:04.186395",
+    "model": "toxic",
+    "name": "akhooli/xlm-r-large-arabic-toxic",
+    "type": "sentiment-analysis",
+    "is_local": true,
+    "base_type": "toxic"
+  },
+  {
+    "_id": {
+      "$oid": "67eee6a8a00e02c688f62a7a"
+    },
+    "created_at": "2025-04-04T00:51:04.186383",
+    "model": "classifier",
+    "name": "joeddav/xlm-roberta-large-xnli",
+    "type": "zero-shot-classification",
+    "is_local": true,
+    "base_type": "classifier"
+  }
+]

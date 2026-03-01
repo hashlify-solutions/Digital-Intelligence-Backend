@@ -1,0 +1,39 @@
+[
+  {
+    "_id": {
+      "$oid": "67daf19286986df61adb1baf"
+    },
+    "name": "DEFAULT PROFILE",
+    "description": "This is a default profile",
+    "classifier": {
+      "model": "classifier",
+      "name": "joeddav/xlm-roberta-large-xnli",
+      "is_local": true,
+      "URL": "https://m9dv6htutjrr1fpy.us-east-1.aws.endpoints.huggingface.cloud",
+      "type": "zero-shot-classification"
+    },
+    "emotion": {
+      "model": "emotion",
+      "name": "cardiffnlp/twitter-xlm-roberta-base-sentiment",
+      "is_local": true,
+      "type": "sentiment-analysis"
+    },
+    "embeddings": {
+      "model": "embeddings",
+      "name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "is_local": true,
+      "embedding_size": 384,
+      "type": "sentence-embeddings"
+    },
+    "toxic": {
+      "model": "toxic",
+      "name": "akhooli/xlm-r-large-arabic-toxic",
+      "is_local": true,
+      "type": "sentiment-analysis"
+    },
+    "user_id": {
+      "$oid": "67a38f3833e65f7e91d90122"
+    },
+    "created_at": "2025-03-18T17:03:38.346973+00:00"
+  }
+]

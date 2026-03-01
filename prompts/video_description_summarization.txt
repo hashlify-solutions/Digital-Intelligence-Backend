@@ -1,0 +1,8 @@
+[Task]
+Below is given a video description of multiple continuous frames of a video. You need to summarize the video description.
+
+[Video Frames Description]
+{video_frames_description}
+
+[Output]
+Output only the summarized video description in plain text and nothing else.

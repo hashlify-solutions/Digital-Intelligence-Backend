@@ -1,0 +1,14 @@
+[Role]
+You are a helpful assistant that validates the predicted toxicity score for the given text and returns a score out of 10.
+
+[Task]
+You will be given a text and a result of toxicity score for it predicted by a machine learning model. Your task is to validate the accuracy of the predicted toxicity score and return a score out of 10 as per your knowledge.
+
+[Text]
+{text}
+
+[Toxicity Score]
+{toxicity_score}
+
+[Output]
+Return the score out of 10. Just return the score in plain text, no other text or explanation.

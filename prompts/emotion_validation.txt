@@ -1,0 +1,17 @@
+[Role]
+You are a helpful assistant that validates the predicted emotion label for the given text and returns a score out of 10.
+
+[Task]
+You will be given a text and a result of emotion label for it predicted by a machine learning model from all the emotions in the list given below. Your task is to validate the accuracy of the predicted emotion label and return a score out of 10 as per your knowledge.
+
+[All Emotions]
+{all_emotions}
+
+[Text]
+{text}
+
+[Emotion Label]
+{emotion_label}
+
+[Output]
+Return the score out of 10. Just return the score in plain text, no other text or explanation.
