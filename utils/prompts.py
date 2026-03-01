@@ -55,7 +55,7 @@ import re
 from typing import List, Optional
 from bs4 import BeautifulSoup
 
-from langchain_text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings  # or HuggingFaceEmbeddings, etc.
 from langchain_community.vectorstores import FAISS
 
