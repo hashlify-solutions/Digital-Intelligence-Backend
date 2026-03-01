@@ -5,7 +5,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from setup import setup_logging
 from langchain_ollama import ChatOllama
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import time
 from config.llm_config import llm_config
