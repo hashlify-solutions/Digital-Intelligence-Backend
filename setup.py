@@ -48,47 +48,60 @@ def setup_logging():
     return logger
 
 
+def _download_single_model(model_name: str, model_dir: str, force: bool = False):
+    """Download a single HuggingFace model with retry logic."""
+    if model_name == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2":
+        auto_model = AutoModel.from_pretrained(model_name, force_download=force)
+    else:
+        auto_model = AutoModelForSequenceClassification.from_pretrained(
+            model_name, force_download=force
+        )
+    tokenizer = AutoTokenizer.from_pretrained(model_name, force_download=force)
+    os.makedirs(model_dir, exist_ok=True)
+    auto_model.save_pretrained(model_dir)
+    tokenizer.save_pretrained(model_dir)
+
+
 async def download_models():
     try:
         models_repository = await models_repository_collection.find().to_list(None)
 
         print(models_repository)
 
-        if models_repository and len(models_repository) > 0:
-
-            for model in models_repository:
-                model_name = model.get("name")
-                model_dir = f"./models/{model.get('model')}"
-                if model.get("is_local", True):
-                    if not os.path.exists(model_dir):
-                        logger.info(f"Downloading {model_name} model...")
-                        # Load model & tokenizer
-                        if (
-                            model_name
-                            == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-                        ):
-                            auto_model = AutoModel.from_pretrained(model_name)
-                        else:
-                            auto_model = (
-                                AutoModelForSequenceClassification.from_pretrained(
-                                    model_name
-                                )
-                            )
-                        tokenizer = AutoTokenizer.from_pretrained(model_name)
-                        # Save them
-                        os.makedirs(model_dir, exist_ok=True)
-                        auto_model.save_pretrained(model_dir)
-                        tokenizer.save_pretrained(model_dir)
-                    else:
-                        logger.info(
-                            f"Model {model_name} already exists. Skipping download."
-                        )
-                else:
-                    logger.info(f"Model {model_name} is not local. Skipping download.")
-
-        else:
+        if not models_repository:
             logger.warning("No models found in the master profile.")
             return
+
+        for model in models_repository:
+            model_name = model.get("name")
+            model_dir = f"./models/{model.get('model')}"
+
+            if not model.get("is_local", True):
+                logger.info(f"Model {model_name} is not local. Skipping download.")
+                continue
+
+            if os.path.exists(model_dir):
+                logger.info(f"Model {model_name} already exists. Skipping download.")
+                continue
+
+            logger.info(f"Downloading {model_name} model...")
+            try:
+                _download_single_model(model_name, model_dir, force=False)
+            except (OSError, Exception) as first_err:
+                logger.warning(
+                    f"First download attempt for {model_name} failed: {first_err}. "
+                    "Retrying with force_download=True (clearing HF cache)..."
+                )
+                try:
+                    _download_single_model(model_name, model_dir, force=True)
+                except Exception as retry_err:
+                    logger.error(
+                        f"Retry download for {model_name} also failed: {retry_err}",
+                        exc_info=True,
+                    )
+                    raise
+
+            logger.info(f"Model {model_name} downloaded and saved to {model_dir}")
 
     except Exception as e:
         logger.error(
