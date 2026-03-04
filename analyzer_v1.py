@@ -556,6 +556,12 @@ class ArabicSocialAnalyzer:
             except Exception as e:
                 logger.error(f"Error in toxicity analysis: {e}")
                 toxicity_classification = {"score": 0.0, "label": "non-toxic"}
+                if torch.cuda.is_available():
+                    try:
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    except Exception:
+                        pass
 
             # Analyze emotion with error handling
             try:
@@ -563,6 +569,12 @@ class ArabicSocialAnalyzer:
             except Exception as e:
                 logger.error(f"Error in emotion analysis: {e}")
                 emotion = {"score": 0.0, "label": "neutral"}
+                if torch.cuda.is_available():
+                    try:
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    except Exception:
+                        pass
 
             # Extract and classify entities
             entities_classification = {}

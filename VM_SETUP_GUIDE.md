@@ -53,12 +53,22 @@ ffmpeg -version
 
 ---
 
-## 2. Docker Engine
+## 2. Docker Engine (Skip on container-based VMs)
 
-If Docker is not already installed on the VM:
+> **vast.ai / container-based VMs:** Docker cannot run inside these environments
+> because the bridge networking driver needs iptables/NAT kernel access that the
+> host does not expose. You will see an error like:
+>
+> ```
+> failed to create NAT chain DOCKER: iptables failed: Permission denied
+> ```
+>
+> **Skip this section entirely.** Redis and Flower will be installed natively in
+> Step 9 instead.
+
+If you are on a **bare-metal or full VM** (not a container), install Docker:
 
 ```bash
-# Add Docker's official GPG key and repo
 sudo apt install -y ca-certificates gnupg
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -79,13 +89,6 @@ Verify:
 ```bash
 docker --version
 docker compose version
-```
-
-If running as root you can skip this, otherwise add your user to the docker group:
-
-```bash
-sudo usermod -aG docker $USER
-newgrp docker
 ```
 
 ---
@@ -141,7 +144,104 @@ cd /workspace/DI-BE
 
 ---
 
-## 5. Activate the Virtual Environment and Install Python Dependencies
+## 5. Install virtualenvwrapper and Create the Virtual Environment
+
+### Install pip for the system Python (if not already present)
+
+```bash
+sudo apt install -y python3-pip python3-venv
+```
+
+### Install virtualenvwrapper
+
+```bash
+pip install virtualenv virtualenvwrapper
+```
+
+### Find the installed paths
+
+The `~/.bashrc` config needs three paths: the Python binary, the `virtualenv`
+binary, and the `virtualenvwrapper.sh` script. Find them:
+
+```bash
+which python3
+# Example: /usr/bin/python3  or  /venv/main/bin/python3
+
+find / -name "virtualenvwrapper.sh" 2>/dev/null
+# Example: /usr/local/bin/virtualenvwrapper.sh  or  /venv/main/bin/virtualenvwrapper.sh
+
+find / -name "virtualenv" -type f 2>/dev/null
+# Example: /usr/local/bin/virtualenv  or  /venv/main/bin/virtualenv
+```
+
+### Add virtualenvwrapper config to `~/.bashrc`
+
+Open the file:
+
+```bash
+nano ~/.bashrc
+```
+
+Add the following block at the **end** of the file. **Replace the paths** with
+whatever the `find` / `which` commands above returned on your VM:
+
+```bash
+# ── virtualenvwrapper ──
+export WORKON_HOME=$HOME/.virtualenvs
+export VIRTUALENVWRAPPER_PYTHON=/venv/main/bin/python3
+export VIRTUALENVWRAPPER_VIRTUALENV=/venv/main/bin/virtualenv
+source /venv/main/bin/virtualenvwrapper.sh
+```
+
+> **Important:** Do NOT use `$(which virtualenv)` for `VIRTUALENVWRAPPER_VIRTUALENV`.
+> That expression is evaluated when `~/.bashrc` loads, and if the directory
+> containing `virtualenv` is not in your `PATH` at that moment, it resolves to
+> empty and virtualenvwrapper fails with *"could not find virtualenv in your path"*.
+> Always use the full absolute path.
+
+Save and close (`Ctrl+O`, `Enter`, `Ctrl+X` in nano), then reload:
+
+```bash
+source ~/.bashrc
+```
+
+You should see the virtualenvwrapper startup messages. Verify the commands are
+available:
+
+```bash
+which mkvirtualenv
+which workon
+which lsvirtualenv
+```
+
+### Create the `DI-BE` virtual environment
+
+```bash
+mkvirtualenv DI-BE -p python3
+```
+
+This creates `~/.virtualenvs/DI-BE/` and activates it automatically. You'll see
+`(DI-BE)` in your prompt.
+
+From now on, activate it any time with:
+
+```bash
+workon DI-BE
+```
+
+Other useful commands:
+
+| Command | Description |
+|---------|-------------|
+| `workon DI-BE` | Activate the DI-BE environment |
+| `deactivate` | Deactivate the current environment |
+| `lsvirtualenv` | List all virtual environments |
+| `rmvirtualenv DI-BE` | Delete the DI-BE environment |
+| `mkvirtualenv <name>` | Create a new environment |
+
+---
+
+## 6. Install Python Dependencies
 
 ```bash
 workon DI-BE
@@ -193,9 +293,9 @@ pip install psutil
 
 ---
 
-## 6. Download Machine Learning Models
+## 7. Download Machine Learning Models
 
-### 6a. Hugging Face Transformer Models (Auto-Download)
+### 7a. Hugging Face Transformer Models (Auto-Download)
 
 The application auto-downloads Hugging Face models on first startup via `setup.py`.
 To pre-download them now so the first startup is faster:
@@ -231,7 +331,7 @@ print('All Hugging Face models downloaded.')
 "
 ```
 
-### 6b. DNN Face Detector (OpenCV Caffe model)
+### 7b. DNN Face Detector (OpenCV Caffe model)
 
 ```bash
 mkdir -p models/dnn-face-detector
@@ -243,7 +343,7 @@ wget -O models/dnn-face-detector/res10_300x300_ssd_iter_140000.caffemodel \
   https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20170830/res10_300x300_ssd_iter_140000.caffemodel
 ```
 
-### 6c. YOLO Object Detection Models
+### 7c. YOLO Object Detection Models
 
 ```bash
 mkdir -p models/yolo12x-object-detector
@@ -268,12 +368,12 @@ wget -O models/yolo12x-object-detector/yolo12n.pt \
   https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo12n.pt
 ```
 
-### 6d. CLIP Model (Sentence Transformers -- auto-cached)
+### 7d. CLIP Model (Sentence Transformers -- auto-cached)
 
 The CLIP model (`clip-ViT-B-32`) is downloaded automatically on first use by
 `sentence-transformers`. No manual step needed.
 
-### 6e. Whisper Model (auto-downloaded)
+### 7e. Whisper Model (auto-downloaded)
 
 The Whisper `small` model is downloaded automatically by the `openai-whisper`
 package on first transcription. No manual step needed. To pre-download:
@@ -284,7 +384,7 @@ python -c "import whisper; whisper.load_model('small', device='cpu'); print('Whi
 
 ---
 
-## 7. Configure the `.env` File
+## 8. Configure the `.env` File
 
 Edit the `.env` file in the project root:
 
@@ -337,38 +437,50 @@ Key settings for the RTX 5090 VM:
 
 ---
 
-## 8. Start Redis and Flower via Docker Compose
+## 9. Start Redis and Flower
+
+### Option A: Native install (required on container-based VMs like vast.ai)
+
+```bash
+sudo apt install -y redis-server
+redis-server --daemonize yes --appendonly yes
+```
+
+Verify Redis is running:
+
+```bash
+redis-cli ping
+```
+
+Expected: `PONG`
+
+Install Flower (Celery task dashboard):
+
+```bash
+pip install flower
+```
+
+Flower will be started alongside the other services in Step 12.
+
+### Option B: Docker Compose (bare-metal / full VMs only)
+
+If Docker is available (see Step 2), you can use the bundled compose file instead:
 
 ```bash
 cd /workspace/DI-BE
 docker compose up -d
 ```
 
-Verify the containers are running:
+Verify:
 
 ```bash
-docker compose ps
+docker compose ps          # both di_redis and di_flower should be Up
+docker compose exec redis redis-cli ping   # Expected: PONG
 ```
-
-Expected output:
-
-```
-NAME         IMAGE              STATUS
-di_redis     redis:7-alpine     Up (healthy)
-di_flower    mher/flower:2.0    Up
-```
-
-Verify Redis connectivity:
-
-```bash
-docker compose exec redis redis-cli ping
-```
-
-Expected: `PONG`
 
 ---
 
-## 9. Create Database Indexes
+## 10. Create Database Indexes
 
 ```bash
 python database_scripts/create_ufdr_indexes.py
@@ -376,7 +488,7 @@ python database_scripts/create_ufdr_indexes.py
 
 ---
 
-## 10. Create Required Directories
+## 11. Create Required Directories
 
 ```bash
 mkdir -p data logs logo
@@ -384,9 +496,9 @@ mkdir -p data logs logo
 
 ---
 
-## 11. Start the Application
+## 12. Start the Application
 
-Open three separate terminal sessions (or use `tmux`/`screen`).
+Open four separate terminal sessions (or use `tmux`/`screen`).
 
 ### Terminal 1: Ollama (if not already running as a system service)
 
@@ -405,6 +517,14 @@ chmod +x start_celery_worker.sh
 ./start_celery_worker.sh
 ```
 
+> **Note:** The `start_celery_worker.sh` script flushes Redis via
+> `docker compose exec redis redis-cli FLUSHALL`. On container-based VMs where
+> Docker is not available, flush Redis natively before starting the worker:
+>
+> ```bash
+> redis-cli FLUSHALL
+> ```
+
 On this VM (255 vCPUs), Celery will auto-set concurrency to `32` threads
 (the `min(cpu_count * 2, 32)` cap). You can override this with:
 
@@ -412,7 +532,15 @@ On this VM (255 vCPUs), Celery will auto-set concurrency to `32` threads
 export PARALLEL_MAX_WORKERS=32
 ```
 
-### Terminal 3: FastAPI Server
+### Terminal 3: Flower (Celery dashboard)
+
+```bash
+workon DI-BE
+cd /workspace/DI-BE
+celery -A celery_app flower --port=5555
+```
+
+### Terminal 4: FastAPI Server
 
 ```bash
 workon DI-BE
@@ -428,7 +556,7 @@ uvicorn server:app --host 0.0.0.0 --port 8000 --workers 4
 
 ---
 
-## 12. Verify Everything Is Working
+## 13. Verify Everything Is Working
 
 ### Check GPU utilization
 
@@ -461,7 +589,7 @@ curl http://localhost:8000/docs
 
 ---
 
-## 13. Using tmux for Persistent Sessions (Recommended)
+## 14. Using tmux for Persistent Sessions (Recommended)
 
 Since VM SSH sessions can disconnect, use `tmux` to keep processes running:
 
@@ -473,10 +601,11 @@ sudo apt install -y tmux
 # Create a new session
 tmux new-session -s di
 
-# Split into panes (Ctrl+B then %)
+# Split into panes (Ctrl+B then % for vertical, Ctrl+B then " for horizontal)
 # Pane 1: ollama serve
-# Pane 2: ./start_celery_worker.sh
-# Pane 3: uvicorn server:app --host 0.0.0.0 --port 8000
+# Pane 2: redis-cli FLUSHALL && ./start_celery_worker.sh
+# Pane 3: celery -A celery_app flower --port=5555
+# Pane 4: uvicorn server:app --host 0.0.0.0 --port 8000
 
 # Detach: Ctrl+B then D
 # Reattach later: tmux attach -t di
@@ -489,21 +618,66 @@ tmux new-session -s di
 After everything is installed, the daily startup sequence is:
 
 ```bash
-# 1. Start Docker services (Redis + Flower)
-cd /workspace/DI-BE
-docker compose up -d
+# 1. Start Redis (skip if already running — check with: redis-cli ping)
+redis-server --daemonize yes --appendonly yes
 
-# 2. Start Ollama (if not running as systemd service)
+# 2. Start Ollama (if not running — check with: pgrep -f ollama)
 ollama serve &
 
-# 3. Start Celery worker
+# 3. Flush stale tasks and start Celery worker
 workon DI-BE
 cd /workspace/DI-BE
+redis-cli FLUSHALL
 ./start_celery_worker.sh &
 
-# 4. Start FastAPI server
+# 4. Start Flower (Celery dashboard)
+celery -A celery_app flower --port=5555 &
+
+# 5. Start FastAPI server
 uvicorn server:app --host 0.0.0.0 --port 8000
 ```
+
+---
+
+## Shutdown and Free GPU Memory
+
+When you're done and want to stop all services and release GPU VRAM:
+
+```bash
+# 1. Stop the Celery worker (find and kill the process)
+pkill -f "celery -A celery_app worker"
+
+# 2. Stop Flower
+pkill -f "celery -A celery_app flower"
+
+# 3. Stop the FastAPI server
+pkill -f "uvicorn server:app"
+
+# 4. Stop Ollama (frees LLM models from GPU)
+pkill -f "ollama serve"
+
+# 5. Force-release all GPU memory held by Python/PyTorch
+python -c "
+import torch, gc
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+    gc.collect()
+    print('PyTorch GPU cache cleared')
+    used = torch.cuda.memory_allocated(0) / 1024**2
+    print(f'Remaining allocated: {used:.0f} MB')
+"
+
+# 6. Nuclear option — kill ALL processes using the GPU
+#    (only use if nvidia-smi still shows memory in use after steps above)
+nvidia-smi | grep 'python\|celery\|ollama\|uvicorn' && \
+  echo "Killing remaining GPU processes..." && \
+  fuser -v /dev/nvidia* 2>/dev/null | xargs -r kill -9
+
+# 7. Verify GPU is fully free
+nvidia-smi
+```
+
+After running these commands, `nvidia-smi` should show `0MiB` memory usage.
 
 ---
 
@@ -558,6 +732,9 @@ ollama list
 ### Redis connection refused
 
 ```bash
-docker compose ps    # Check if container is running
-docker compose up -d # Restart if needed
+# Check if Redis is running
+redis-cli ping
+
+# If not, start it
+redis-server --daemonize yes --appendonly yes
 ```

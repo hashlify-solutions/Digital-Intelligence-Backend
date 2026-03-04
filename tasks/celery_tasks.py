@@ -415,7 +415,7 @@ def detect_faces_task(self, output_ufdr_path, ufdr_file_id, case_id):
 
     except Exception as e:
         logger.error(f"Error in detect_faces_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -451,7 +451,7 @@ def detect_objects_task(self, output_ufdr_path, ufdr_file_id, case_id):
 
     except Exception as e:
         logger.error(f"Error in detect_objects_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -486,7 +486,7 @@ def segment_video_in_frames_task(
 
     except Exception as e:
         logger.error(f"Error in segment_video_in_frames_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -526,7 +526,7 @@ def detect_video_faces_task(self, output_ufdr_path, ufdr_file_id, case_id):
 
     except Exception as e:
         logger.error(f"Error in detect_video_faces_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -565,7 +565,7 @@ def detect_video_objects_task(self, output_ufdr_path, ufdr_file_id, case_id):
 
     except Exception as e:
         logger.error(f"Error in detect_video_objects_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -612,7 +612,7 @@ def process_detector_matches_task(self, case_id, ufdr_file_id):
 
     except Exception as e:
         logger.error(f"Error in process_detector_matches_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(name="tasks.celery_tasks.process_ufdr_upload")
@@ -761,7 +761,7 @@ def process_ufdr_upload(
 
     except Exception as e:
         logger.error(f"Error in process_ufdr_upload task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -792,7 +792,7 @@ def process_detector_embedding_task(self, detector_id, case_id):
 
     except Exception as e:
         logger.error(f"Error in process_detector_embedding_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -826,7 +826,7 @@ def analyze_detector_matches_task(self, case_id, detector_type=None):
 
     except Exception as e:
         logger.error(f"Error in analyze_detector_matches_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -870,7 +870,7 @@ def new_detector_match_task(self, case_id, detector_id):
 
     except Exception as e:
         logger.error(f"Error in match_new_detection_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -947,7 +947,7 @@ def analyze_audio_task(
 
     except Exception as e:
         logger.error(f"Error in analyze_audio_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -1043,7 +1043,7 @@ def analyze_video_task(
 
     except Exception as e:
         logger.error(f"Error in analyze_video_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -1073,7 +1073,7 @@ def detect_nsfw_images_task(self, ufdr_file_id):
         return result
     except Exception as e:
         logger.error(f"Error in detect_nsfw_images_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -1158,7 +1158,7 @@ def generate_image_description_llava_task(
         return result
     except Exception as e:
         logger.error(f"Error in generate_image_description_llava_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -1242,7 +1242,7 @@ def generate_video_frame_description_llava_task(
         return result
     except Exception as e:
         logger.error(f"Error in generate_video_frame_description_llava_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(
@@ -1328,4 +1328,4 @@ def generate_video_description_task(
         return result
     except Exception as e:
         logger.error(f"Error in generate_video_description_task: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}

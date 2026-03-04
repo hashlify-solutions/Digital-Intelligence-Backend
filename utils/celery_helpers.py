@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 import logging
 import os
+import torch
 import cv2
 # Prevent OpenCV from spawning its own threads (causes segfaults in multi-threaded Celery workers)
 cv2.setNumThreads(0)
@@ -262,10 +263,9 @@ async def process_face_detection_async(
 
     except Exception as e:
         logger.error(f"Error in async face detection: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
         cleanup_gpu_memory()
 
 
@@ -388,10 +388,9 @@ async def process_object_detection_async(
 
     except Exception as e:
         logger.error(f"Error in async object detection: {str(e)}")
-        raise
+        return {"status": "error", "case_id": case_id, "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
         cleanup_gpu_memory()
 
 
@@ -516,10 +515,10 @@ async def process_video_face_detection_async(
 
     except Exception as e:
         logger.error(f"Error in async video face detection: {str(e)}")
-        raise
+        return {"status": "error", "case_id": case_id, "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -647,10 +646,10 @@ async def process_video_object_detection_async(
 
     except Exception as e:
         logger.error(f"Error in async video object detection: {str(e)}")
-        raise
+        return {"status": "error", "case_id": case_id, "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -782,10 +781,10 @@ async def segment_video_frames_async(
 
     except Exception as e:
         logger.error(f"Error in async video frame segmentation: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -849,10 +848,10 @@ async def process_detector_embedding_async(detector_id, case_id, detectors_colle
 
     except Exception as e:
         logger.error(f"Error processing detector embedding: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -1105,10 +1104,10 @@ async def analyze_detector_matches_async(
 
     except Exception as e:
         logger.error(f"Error in detector match analysis: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -1311,10 +1310,10 @@ async def new_detector_match_async(
 
     except Exception as e:
         logger.error(f"Error in new_detector_match_async: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -1532,10 +1531,10 @@ async def process_detector_matches_async(
 
     except Exception as e:
         logger.error(f"Error in process_detector_matches_async: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -1571,8 +1570,12 @@ async def analyze_audio_async(
 
             try:
                 transribed_text_doc = transcriber_client.transcribe(ufdr_audio_path)
-                if not transribed_text_doc["text"]:
-                    logger.error(f"Error transcribing audio: {transribed_text_doc.get('error')}")
+                if transribed_text_doc is None:
+                    logger.warning(f"Transcription returned None for {ufdr_audio_path}, skipping")
+                    continue
+                if not transribed_text_doc.get("text"):
+                    error_detail = transribed_text_doc.get("error", "empty transcription")
+                    logger.warning(f"No transcription text for {ufdr_audio_path}: {error_detail}")
                     continue
                 transcription_results.append({
                     "audio_id": ufdr_audio_id,
@@ -1609,9 +1612,14 @@ async def analyze_audio_async(
             emotion_results = analyzer_client.emotion_client.analyze_sentiment_batch(all_texts)
         except Exception as e:
             logger.error(f"Batch AI analysis failed, falling back to sequential: {e}")
-            # Fallback: analyze one by one
             topic_results = interaction_results = sentiment_results = None
             toxicity_results = emotion_results = None
+            if torch.cuda.is_available():
+                try:
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                except Exception:
+                    pass
 
         # Step 3: Assemble results, bulk-update MongoDB, batch-upsert Qdrant
         from pymongo import UpdateOne as _UpdateOne
@@ -1736,7 +1744,7 @@ async def analyze_audio_async(
 
     except Exception as e:
         logger.error(f"Error in analyze_audio_async: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
         cleanup_gpu_memory()
@@ -1791,8 +1799,12 @@ async def analyze_video_async(
                     continue
 
                 transribed_text_doc = transcriber_client.transcribe(converted_audio_path)
-                if not transribed_text_doc["text"]:
-                    logger.error(f"Error transcribing video audio: {transribed_text_doc.get('error')}")
+                if transribed_text_doc is None:
+                    logger.warning(f"Transcription returned None for video audio {converted_audio_path}, skipping")
+                    continue
+                if not transribed_text_doc.get("text"):
+                    error_detail = transribed_text_doc.get("error", "empty transcription")
+                    logger.warning(f"No transcription text for video audio {converted_audio_path}: {error_detail}")
                     continue
 
                 transcription_results.append({
@@ -1832,6 +1844,12 @@ async def analyze_video_async(
             logger.error(f"Batch AI analysis failed for video, falling back to sequential: {e}")
             topic_results = interaction_results = sentiment_results = None
             toxicity_results = emotion_results = None
+            if torch.cuda.is_available():
+                try:
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                except Exception:
+                    pass
 
         # Step 3: Batch embeddings
         try:
@@ -1952,7 +1970,7 @@ async def analyze_video_async(
 
     except Exception as e:
         logger.error(f"Error in analyze_video_async: {str(e)}")
-        raise
+        return {"status": "error", "error": str(e)}
 
     finally:
         cleanup_gpu_memory()
@@ -2095,10 +2113,10 @@ async def detect_nsfw_images_async(
 
     except Exception as e:
         logger.error(f"Error in detect_nsfw_images_async: {str(e)}")
-        raise
+        return {"status": "error", "ufdr_file_id": ufdr_file_id, "error": str(e)}
 
     finally:
-        # Cleanup GPU memory
+        cleanup_gpu_memory()
         cleanup_gpu_memory()
 
 
@@ -2306,7 +2324,7 @@ async def generate_image_description_llava_async(
 
     except Exception as e:
         logger.error(f"Error in generate_image_description_llava_async: {str(e)}")
-        raise
+        return {"status": "error", "ufdr_file_id": ufdr_file_id, "error": str(e)}
 
 
 async def generate_video_frame_description_llava_async(
@@ -2517,7 +2535,7 @@ async def generate_video_frame_description_llava_async(
 
     except Exception as e:
         logger.error(f"Error in generate_video_frame_description_llava_async: {str(e)}")
-        raise
+        return {"status": "error", "ufdr_file_id": ufdr_file_id, "error": str(e)}
 
 
 async def generate_video_description_async(
@@ -2543,141 +2561,141 @@ async def generate_video_description_async(
         entities_classes = case_doc["entitiesClasses"]
 
         for ufdr_video in ufdr_videos:
-            video_description = ""
-            video_entities = []
-            ufdr_video_id = ufdr_video["_id"]
-            ufdr_video_screenshots = (
-                await ufdr_video_screenshots_collection.find(
-                    {"ufdr_video_id": ObjectId(ufdr_video_id)}
-                )
-                .sort("frame_number", 1)
-                .to_list(length=None)
-            )
-
-            for ufdr_video_screenshot in ufdr_video_screenshots:
-                ufdr_video_screenshot_path = ufdr_video_screenshot["path"]
-                ufdr_video_screenshot_frame_number = ufdr_video_screenshot[
-                    "frame_number"
-                ]
-                ufdr_video_screenshot_description = ufdr_video_screenshot["description"]
-                ufdr_video_screenshot_entities = ufdr_video_screenshot["entities"]
-
-                logger.info(
-                    f"Image description for video screenshot {ufdr_video_screenshot_path} frame number {ufdr_video_screenshot_frame_number} is\n: {ufdr_video_screenshot_description}"
-                )
-                if ufdr_video_screenshot_description:
-                    video_description += f"Frame number {ufdr_video_screenshot_frame_number} Description: {ufdr_video_screenshot_description}\n"
-                    video_entities.extend(ufdr_video_screenshot_entities)
-                else:
-                    logger.error(
-                        f"Description for video screenshot {ufdr_video_screenshot_path} frame number {ufdr_video_screenshot_frame_number} is not found"
+            try:
+                video_description = ""
+                video_entities = []
+                ufdr_video_id = ufdr_video["_id"]
+                ufdr_video_screenshots = (
+                    await ufdr_video_screenshots_collection.find(
+                        {"ufdr_video_id": ObjectId(ufdr_video_id)}
                     )
-                    continue
-
-            video_entities = list(set(video_entities))
-            logger.info(f"Video entities: {video_entities}")
-
-            if video_description:
-                with open("prompts/video_description_summarization.txt", "r") as file:
-                    video_frames_description_summarization_prompt = file.read()
-                final_video_description = llama_client.chat(
-                    video_frames_description_summarization_prompt,
-                    {"video_frames_description": video_description.strip()},
-                )
-                try:
-                    video_entities_classification = llama_client.classify_entities(
-                        video_entities, entities_classes
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error classifying video entities for video {ufdr_video_id}: {e}"
-                    )
-                    video_entities_classification = {}
-
-                # Analyze the description
-                logger.info(
-                    f"Starting to analyze the video description for {ufdr_video_id} video"
-                )
-                analysis_summary = await analyzer_client.analyze_content(
-                    video_description
-                )
-                analysis_summary_response = (
-                    analyzer_client.process_analyze_content_response(analysis_summary)
-                )
-                logger.info(f"Analysis summary response: {analysis_summary_response}")
-                collection_update_doc = {
-                    "description": (
-                        final_video_description
-                        if final_video_description
-                        else video_description
-                    ),
-                    "entities": video_entities,
-                    "entities_classification": video_entities_classification,
-                    "analysis_summary": analysis_summary,
-                }
-                if is_llama_validation_enabled:
-                    llama_validation_summary = (
-                        await analyzer_client.validate_analysis_summary_via_llama(
-                            video_description, analysis_summary_response
-                        )
-                    )
-                    collection_update_doc["llama_validation_summary"] = (
-                        llama_validation_summary
-                    )
-                # Save the analysis result to the database
-                await ufdr_video_collection.update_one(
-                    {"_id": ObjectId(ufdr_video_id)},
-                    {"$set": collection_update_doc},
-                )
-                logger.info(
-                    f"Description, entities and entities classification for {ufdr_video_id} video are saved in the database"
+                    .sort("frame_number", 1)
+                    .to_list(length=None)
                 )
 
-                # Saving the embeddings for the video description in the quadrant database
-                logger.info(
-                    f"Starting to save the embeddings for {ufdr_video_id} video in the quadrant"
-                )
-                new_quadrant_media_case_collection = f"case_{case_id}_media"
-                create_quadrant_collection_if_not_exists(
-                    new_quadrant_media_case_collection, vector_size, Distance.COSINE
-                )
-                video_description_embeddings = (
-                    rag_analyzer_client.query_embedding_endpoint(
-                        final_video_description
+                for ufdr_video_screenshot in ufdr_video_screenshots:
+                    ufdr_video_screenshot_path = ufdr_video_screenshot["path"]
+                    ufdr_video_screenshot_frame_number = ufdr_video_screenshot[
+                        "frame_number"
+                    ]
+                    ufdr_video_screenshot_description = ufdr_video_screenshot["description"]
+                    ufdr_video_screenshot_entities = ufdr_video_screenshot["entities"]
+
+                    logger.info(
+                        f"Image description for video screenshot {ufdr_video_screenshot_path} frame number {ufdr_video_screenshot_frame_number} is\n: {ufdr_video_screenshot_description}"
                     )
-                )
-                if len(video_description_embeddings) > 0:
-                    logger.info(f"Embeddings exist for {ufdr_video_id} video")
-                    video_point = PointStruct(
-                        id=str(uuid.uuid4()),
-                        payload={
-                            "type": "video_description",
-                            "ufdr_video_id": str(ufdr_video_id),
-                            "ufdr_video_path": ufdr_video["path"],
-                            "description": final_video_description,
-                            "case_id": str(case_id),
-                            "ufdr_id": str(ufdr_file_id),
-                        },
-                        vector=video_description_embeddings,
-                    )
-                    success = robust_qdrant_upsert(
-                        collection_name=new_quadrant_media_case_collection,
-                        points=[video_point],
-                        max_retries=3,
-                    )
-                    if success:
-                        logger.info(
-                            f"Embeddings for {ufdr_video_id} video saved successfully in quadrant"
-                        )
+                    if ufdr_video_screenshot_description:
+                        video_description += f"Frame number {ufdr_video_screenshot_frame_number} Description: {ufdr_video_screenshot_description}\n"
+                        video_entities.extend(ufdr_video_screenshot_entities)
                     else:
                         logger.error(
-                            f"Failed to save embeddings for {ufdr_video_id} video to quadrant after multiple attempts"
+                            f"Description for video screenshot {ufdr_video_screenshot_path} frame number {ufdr_video_screenshot_frame_number} is not found"
                         )
-                else:
-                    logger.info(
-                        f"Failed to save the embeddings for {ufdr_video_id} video in the quadrant"
+                        continue
+
+                video_entities = list(set(video_entities))
+                logger.info(f"Video entities: {video_entities}")
+
+                if video_description:
+                    with open("prompts/video_description_summarization.txt", "r") as file:
+                        video_frames_description_summarization_prompt = file.read()
+                    final_video_description = llama_client.chat(
+                        video_frames_description_summarization_prompt,
+                        {"video_frames_description": video_description.strip()},
                     )
-                    continue
+                    try:
+                        video_entities_classification = llama_client.classify_entities(
+                            video_entities, entities_classes
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Error classifying video entities for video {ufdr_video_id}: {e}"
+                        )
+                        video_entities_classification = {}
+
+                    logger.info(
+                        f"Starting to analyze the video description for {ufdr_video_id} video"
+                    )
+                    analysis_summary = await analyzer_client.analyze_content(
+                        video_description
+                    )
+                    analysis_summary_response = (
+                        analyzer_client.process_analyze_content_response(analysis_summary)
+                    )
+                    logger.info(f"Analysis summary response: {analysis_summary_response}")
+                    collection_update_doc = {
+                        "description": (
+                            final_video_description
+                            if final_video_description
+                            else video_description
+                        ),
+                        "entities": video_entities,
+                        "entities_classification": video_entities_classification,
+                        "analysis_summary": analysis_summary,
+                    }
+                    if is_llama_validation_enabled:
+                        llama_validation_summary = (
+                            await analyzer_client.validate_analysis_summary_via_llama(
+                                video_description, analysis_summary_response
+                            )
+                        )
+                        collection_update_doc["llama_validation_summary"] = (
+                            llama_validation_summary
+                        )
+                    await ufdr_video_collection.update_one(
+                        {"_id": ObjectId(ufdr_video_id)},
+                        {"$set": collection_update_doc},
+                    )
+                    logger.info(
+                        f"Description, entities and entities classification for {ufdr_video_id} video are saved in the database"
+                    )
+
+                    logger.info(
+                        f"Starting to save the embeddings for {ufdr_video_id} video in the quadrant"
+                    )
+                    new_quadrant_media_case_collection = f"case_{case_id}_media"
+                    create_quadrant_collection_if_not_exists(
+                        new_quadrant_media_case_collection, vector_size, Distance.COSINE
+                    )
+                    video_description_embeddings = (
+                        rag_analyzer_client.query_embedding_endpoint(
+                            final_video_description
+                        )
+                    )
+                    if video_description_embeddings is not None and len(video_description_embeddings) > 0:
+                        logger.info(f"Embeddings exist for {ufdr_video_id} video")
+                        video_point = PointStruct(
+                            id=str(uuid.uuid4()),
+                            payload={
+                                "type": "video_description",
+                                "ufdr_video_id": str(ufdr_video_id),
+                                "ufdr_video_path": ufdr_video["path"],
+                                "description": final_video_description,
+                                "case_id": str(case_id),
+                                "ufdr_id": str(ufdr_file_id),
+                            },
+                            vector=video_description_embeddings,
+                        )
+                        success = robust_qdrant_upsert(
+                            collection_name=new_quadrant_media_case_collection,
+                            points=[video_point],
+                            max_retries=3,
+                        )
+                        if success:
+                            logger.info(
+                                f"Embeddings for {ufdr_video_id} video saved successfully in quadrant"
+                            )
+                        else:
+                            logger.error(
+                                f"Failed to save embeddings for {ufdr_video_id} video to quadrant after multiple attempts"
+                            )
+                    else:
+                        logger.warning(
+                            f"No embeddings generated for {ufdr_video_id} video, skipping quadrant upsert"
+                        )
+            except Exception as e:
+                logger.error(f"Error processing video {ufdr_video_id} description: {e}")
+                continue
 
         logger.info(
             f"Completed video description generation for the ufdr_file: {ufdr_file_id}"
@@ -2686,7 +2704,7 @@ async def generate_video_description_async(
 
     except Exception as e:
         logger.error(f"Error in generate_video_description_async: {str(e)}")
-        raise
+        return {"status": "error", "ufdr_file_id": ufdr_file_id, "error": str(e)}
 
 
 async def process_csv_upload_v1_helper(

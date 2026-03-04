@@ -198,9 +198,23 @@ class Whisper:
                 "success": False,
                 "error": error_msg,
             }
+        except RuntimeError as e:
+            error_msg = f"Runtime error transcribing audio {audio_path}: {str(e)}"
+            logger.error(error_msg)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            return {
+                "text": "",
+                "language": None,
+                "segments": [],
+                "success": False,
+                "error": error_msg,
+            }
         except Exception as e:
             error_msg = f"Error transcribing audio {audio_path}: {str(e)}"
             logger.error(error_msg)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             return {
                 "text": "",
                 "language": None,

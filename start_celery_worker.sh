@@ -5,8 +5,11 @@ source .env 2>/dev/null || true
 
 # Clear Redis cache before starting worker
 echo "Clearing Redis cache..."
-docker compose exec redis redis-cli FLUSHALL
-echo "Redis cache cleared."
+if docker compose exec redis redis-cli FLUSHALL 2>/dev/null; then
+    echo "Redis cache cleared (via Docker)."
+else
+    redis-cli FLUSHALL 2>/dev/null && echo "Redis cache cleared (native)." || echo "Warning: Could not flush Redis cache."
+fi
 
 # Start Celery worker with threads pool on all platforms.
 # Threads pool ensures:
