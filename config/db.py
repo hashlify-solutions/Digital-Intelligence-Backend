@@ -18,21 +18,22 @@ _min_pool_size = min(_compute_config["max_workers"], 10)  # Min connections to m
 # These settings are critical for high-throughput processing
 client = AsyncIOMotorClient(
     settings.mongo_connection_string,
-    maxPoolSize=_max_pool_size,  # Maximum connections in pool
-    minPoolSize=_min_pool_size,  # Minimum connections to maintain
-    maxIdleTimeMS=60000,  # Close idle connections after 60s
-    waitQueueTimeoutMS=30000,  # Wait up to 30s for a connection
-    serverSelectionTimeoutMS=30000,  # Timeout for server selection
-    connectTimeoutMS=10000,  # Connection timeout
-    socketTimeoutMS=300000,  # 5 minute socket timeout for long operations
-    retryWrites=True,  # Automatically retry failed writes
-    retryReads=True,  # Automatically retry failed reads
-    w='majority',  # Write concern for durability
-    journal=True,  # Enable journaling for durability
+    maxPoolSize=_max_pool_size,
+    minPoolSize=_min_pool_size,
+    maxIdleTimeMS=60000,
+    waitQueueTimeoutMS=settings.mongodb_connect_timeout * 1000,
+    serverSelectionTimeoutMS=settings.mongodb_server_selection_timeout * 1000,
+    connectTimeoutMS=settings.mongodb_connect_timeout * 1000,
+    socketTimeoutMS=settings.mongodb_socket_timeout * 1000,
+    retryWrites=True,
+    retryReads=True,
+    w='majority',
+    journal=True,
 )
 
 logger.info(
-    f"MongoDB client initialized with pool: max={_max_pool_size}, min={_min_pool_size}"
+    f"MongoDB client initialized with pool: max={_max_pool_size}, min={_min_pool_size}, "
+    f"connectTimeout={settings.mongodb_connect_timeout}s, socketTimeout={settings.mongodb_socket_timeout}s"
 )
 
 # Enhanced Qdrant client with proper timeout configuration
@@ -40,10 +41,10 @@ try:
     qdrant_client = QdrantClient(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,
-        timeout=60,  # 60 second timeout for operations
-        prefer_grpc=False,  # Use HTTP client for better compatibility
+        timeout=settings.qdrant_timeout,
+        prefer_grpc=False,
     )
-    logger.info("Qdrant client initialized successfully")
+    logger.info(f"Qdrant client initialized successfully (timeout={settings.qdrant_timeout}s)")
 except Exception as e:
     logger.error(f"Failed to initialize Qdrant client: {e}")
     raise

@@ -1,5 +1,6 @@
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from PIL import Image
 import base64
 from io import BytesIO
@@ -9,14 +10,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 class Llava:
-    def __init__(self, model_name="llava:latest"):
+    def __init__(self, model_name="llava:latest", timeout: int = 120):
         """
         Initialize the LLaVA client with Ollama.
 
         Args:
             model_name (str): Name of the Ollama model (default: "llava:7b", "llava:v1.6", "llava:latest") which is the latest version.
+            timeout (int): Request timeout in seconds.
         """
-        self.llm = ChatOllama(model=model_name, temperature=0.1)
+        self.timeout = timeout
+        self.llm = ChatOllama(model=model_name, temperature=0.1, timeout=timeout)
 
     def _image_to_base64(self, image_path) -> str:
         """
@@ -50,7 +53,7 @@ class Llava:
             question (str): Question about the image.
 
         Returns:
-            str: Description of the image.
+            str: Description of the image, or None on failure/timeout.
         """
         try:
             image_data = self._image_to_base64(image_path)
@@ -68,8 +71,15 @@ class Llava:
                     }
                 ]
             )
-            response = self.llm.invoke([message])
-            return response.content.strip()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self.llm.invoke, [message])
+                try:
+                    response = future.result(timeout=self.timeout)
+                    return response.content.strip()
+                except FuturesTimeoutError:
+                    logger.error(f"Llava describe_image timed out after {self.timeout}s for {image_path}")
+                    future.cancel()
+                    return None
 
         except Exception as e:
             logger.error(f"Error describing image with Llava: {str(e)}")

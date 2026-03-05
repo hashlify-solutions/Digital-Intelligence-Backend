@@ -226,18 +226,21 @@ class AsyncLlamaClient:
                     
                     llm = ChatOllama(
                         model="llama3.1:8b",
+                        timeout=self.timeout,
                         **model_params
                     )
                     
                     llm_chain = prompt_template | llm | StrOutputParser()
                     
-                    # Run in shared thread pool to avoid blocking
                     executor = self.get_executor()
                     loop = asyncio.get_event_loop()
                     start_time = time.time()
-                    answer = await loop.run_in_executor(
-                        executor, 
-                        lambda: llm_chain.invoke(variables)
+                    answer = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            executor,
+                            lambda: llm_chain.invoke(variables)
+                        ),
+                        timeout=self.timeout,
                     )
                     processing_time = time.time() - start_time
                     
@@ -272,18 +275,21 @@ class AsyncLlamaClient:
                     logger.info(f"Trying model for entity_extraction: {model_name}")
                     llm = ChatOllama(
                         model=model_name,
+                        timeout=self.timeout,
                         **fast_params
                     )
                     llm_chain = PromptTemplate(
                         template=prompt,
                         input_variables=list(variables.keys()),
                     ) | llm | StrOutputParser()
-                    # Run in thread pool to avoid blocking
                     loop = asyncio.get_event_loop()
                     start_time = time.time()
-                    answer = await loop.run_in_executor(
-                        None, 
-                        lambda: llm_chain.invoke(variables)
+                    answer = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda: llm_chain.invoke(variables)
+                        ),
+                        timeout=self.timeout,
                     )
                     processing_time = time.time() - start_time
                     logger.info(f"Model {model_name} succeeded for entity_extraction in {processing_time:.2f}s")

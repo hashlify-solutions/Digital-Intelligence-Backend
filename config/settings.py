@@ -85,6 +85,23 @@ class Settings(BaseSettings):
     # CORS Settings
     cors_origins: str = Field(env="CORS_ORIGINS")
     
+    # Timeout Settings (in seconds)
+    mongodb_connect_timeout: int = Field(default=30, env="MONGODB_CONNECT_TIMEOUT")
+    mongodb_socket_timeout: int = Field(default=300, env="MONGODB_SOCKET_TIMEOUT")
+    mongodb_server_selection_timeout: int = Field(default=30, env="MONGODB_SERVER_SELECTION_TIMEOUT")
+    qdrant_timeout: int = Field(default=60, env="QDRANT_TIMEOUT")
+    llm_timeout: int = Field(default=120, env="LLM_TIMEOUT")
+    llama_timeout: Optional[int] = Field(default=None, env="LLAMA_TIMEOUT")
+    llava_timeout: Optional[int] = Field(default=None, env="LLAVA_TIMEOUT")
+
+    @property
+    def effective_llama_timeout(self) -> int:
+        return self.llama_timeout or self.llm_timeout
+
+    @property
+    def effective_llava_timeout(self) -> int:
+        return self.llava_timeout or self.llm_timeout
+
     # Parallel Processing Settings (optional - auto-detected if not set)
     parallel_max_workers: Optional[int] = Field(default=None, env="PARALLEL_MAX_WORKERS")
     parallel_batch_size: Optional[int] = Field(default=None, env="PARALLEL_BATCH_SIZE")

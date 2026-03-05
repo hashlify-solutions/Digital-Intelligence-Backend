@@ -1,9 +1,11 @@
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from numpy import isin
 from setup import setup_logging
 from typing import Optional, Dict, Any, List
+from config.settings import settings
 
 logger = setup_logging()
 
@@ -49,15 +51,13 @@ class LlamaClient:
     ) -> None:
         self.prompt = prompt
         self.variables = variables
-        # Merge default basic parameters with user provided ones
         self.basic_params = {**self.DEFAULT_BASIC_PARAMS, **(basic_params or {})}
-        # Merge default advanced parameters with user provided ones
         self.advanced_params = {**self.DEFAULT_ADVANCED_PARAMS, **(advanced_params or {})}
         self.prompt_engineering = prompt_engineering
+        self.timeout = settings.effective_llama_timeout
 
     def chat(self) -> str:
         try:
-            # Combine prompt engineering if provided
             final_prompt = self.prompt
             if self.prompt_engineering and self.prompt_engineering.strip():
                 final_prompt = self.prompt_engineering.strip() + "\n" + self.prompt
@@ -66,16 +66,23 @@ class LlamaClient:
                 input_variables=list(self.variables.keys()),
             )
             
-            # Combine basic and advanced parameters for the model
             model_params = {**self.basic_params, **self.advanced_params}
             
             llm = ChatOllama(
                 model="llama3.1:8b",
+                timeout=self.timeout,
                 **model_params
             )
             
             llm_chain = prompt | llm | StrOutputParser()
-            answer = llm_chain.invoke(self.variables)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(llm_chain.invoke, self.variables)
+                try:
+                    answer = future.result(timeout=self.timeout)
+                except FuturesTimeoutError:
+                    logger.error(f"LlamaClient chat timed out after {self.timeout}s")
+                    future.cancel()
+                    return "عذراً، انتهت مهلة الاستجابة. يرجى المحاولة مرة أخرى."
             
             if not answer or len(answer.strip()) == 0:
                 logger.warning("Empty response from LLM")
@@ -87,6 +94,17 @@ class LlamaClient:
             logger.error(f"Error in LlamaClient: {str(e)}")
             return "عذراً، حدث خطأ في معالجة طلبك. يرجى المحاولة مرة أخرى."
     
+    def _invoke_with_timeout(self, llm_chain, variables: dict) -> Optional[str]:
+        """Invoke an LLM chain with a Python-level timeout safety net."""
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(llm_chain.invoke, variables)
+            try:
+                return future.result(timeout=self.timeout)
+            except FuturesTimeoutError:
+                logger.error(f"LlamaClient validation timed out after {self.timeout}s")
+                future.cancel()
+                return None
+
     def validate_classification_result(self, text: str, all_classes: List[str], classfication_result: Dict[str, Any]) -> Optional[float]:
         """Validate the classification result for the given text against all classes and return a score out of 10"""
         try:
@@ -100,11 +118,14 @@ class LlamaClient:
             
             llm = ChatOllama(
                 model="llama3.1:8b",
+                timeout=self.timeout,
                 **self.basic_params
             )
             
             llm_chain = prompt | llm | StrOutputParser()
-            answer = llm_chain.invoke({"text": text, "all_classes": all_classes, "classification_label": classfication_result})
+            answer = self._invoke_with_timeout(llm_chain, {"text": text, "all_classes": all_classes, "classification_label": classfication_result})
+            if answer is None:
+                return None
             
             return float(answer.strip())
         except ValueError as e:
@@ -127,11 +148,14 @@ class LlamaClient:
             
             llm = ChatOllama(
                 model="llama3.1:8b",
+                timeout=self.timeout,
                 **self.basic_params
             )
             
             llm_chain = prompt | llm | StrOutputParser()
-            answer = llm_chain.invoke({"text": text, "toxicity_score": toxicity_score})
+            answer = self._invoke_with_timeout(llm_chain, {"text": text, "toxicity_score": toxicity_score})
+            if answer is None:
+                return None
             
             return float(answer.strip())
         except ValueError as e:
@@ -154,11 +178,14 @@ class LlamaClient:
             
             llm = ChatOllama(
                 model="llama3.1:8b",
+                timeout=self.timeout,
                 **self.basic_params
             )
             
             llm_chain = prompt | llm | StrOutputParser()
-            answer = llm_chain.invoke({"text": text, "all_emotions": all_emotions, "emotion_label": emotion_result})
+            answer = self._invoke_with_timeout(llm_chain, {"text": text, "all_emotions": all_emotions, "emotion_label": emotion_result})
+            if answer is None:
+                return None
             
             return float(answer.strip())
         except ValueError as e:

@@ -2195,8 +2195,10 @@ async def generate_image_description_llava_async(
         all_entity_classifications = []
         case_doc = await case_collection.find_one({"_id": ObjectId(case_id)})
         entities_classes = case_doc.get("entitiesClasses", []) if case_doc else []
+        total_desc = len(description_results)
 
-        for desc_result in description_results:
+        for idx, desc_result in enumerate(description_results):
+            logger.info(f"Entity extraction for image {idx + 1}/{total_desc}: {desc_result['photo_path']}")
             try:
                 entities = llama_client.extract_entities(desc_result["description"])
                 all_entities.append(entities or [])
@@ -2213,6 +2215,8 @@ async def generate_image_description_llava_async(
             except Exception as e:
                 logger.error(f"Entity classification failed: {e}")
                 all_entity_classifications.append({})
+
+        logger.info(f"Entity extraction completed for all {total_desc} images")
 
         # Step 4: Batch embeddings
         try:
@@ -2404,8 +2408,10 @@ async def generate_video_frame_description_llava_async(
         all_entity_classifications = []
         case_doc = await case_collection.find_one({"_id": ObjectId(case_id)})
         entities_classes = case_doc.get("entitiesClasses", []) if case_doc else []
+        total_desc = len(description_results)
 
-        for desc_result in description_results:
+        for idx, desc_result in enumerate(description_results):
+            logger.info(f"Entity extraction for video frame {idx + 1}/{total_desc}: {desc_result['ss_path']}")
             try:
                 entities = llama_client.extract_entities(desc_result["description"])
                 all_entities.append(entities or [])
@@ -2422,6 +2428,8 @@ async def generate_video_frame_description_llava_async(
             except Exception as e:
                 logger.error(f"Entity classification failed: {e}")
                 all_entity_classifications.append({})
+
+        logger.info(f"Entity extraction completed for all {total_desc} video frames")
 
         # Step 4: Batch embeddings
         try:

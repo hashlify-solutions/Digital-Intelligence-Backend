@@ -59,6 +59,10 @@ topics_default = ["political_discussion", "social_commentary", "news_reaction",
                 "international_relations", "community_support", "grievance",
                 "celebration", "solidarity", "criticism", "patriotism"]
 
+note_classification_default = ["Social Media", "Banking", "Shopping", "News Sites", "Entertainment", "Educational", "Government Sites", "Healthcare Sites", "Travel Sites", "Gaming Sites", "Adult Content", "Political Sites"]
+
+browsing_history_classification_default = ["Password", "Username", "Personal Information", "Financial Data", "Contact Details", "Medical Information", "Legal Documents", "Credentials", "API Keys", "Security Notes", "Private Thoughts", "Work Notes", "Personal Notes", "Confidential Information", "Sensitive Data"]
+
 sentiments_arabic = [
     "وطني",
     "قومي",

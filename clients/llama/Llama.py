@@ -1,6 +1,7 @@
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import json
 import re
 import ast
@@ -10,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class Llama:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, timeout: int = 120) -> None:
+        self.timeout = timeout
 
     def _safe_parse_json(self, response: str, fallback_value=None):
         """
@@ -92,10 +93,21 @@ class Llama:
         llm = ChatOllama(
             model="llama3.1:8b",
             temperature=0,
+            timeout=self.timeout,
         )
         llm_chain = prompt | llm | StrOutputParser()
-        answer = llm_chain.invoke(variables)
-        return answer
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(llm_chain.invoke, variables)
+            try:
+                answer = future.result(timeout=self.timeout)
+                return answer
+            except FuturesTimeoutError:
+                logger.error(f"Llama chat timed out after {self.timeout}s")
+                future.cancel()
+                return ""
+            except Exception as e:
+                logger.error(f"Llama chat error: {e}")
+                return ""
 
     def extract_entities(self, preview_text: str):
         prompt = """Extract entities (names, locations, organizations, and other key information) from the following text:
@@ -115,7 +127,10 @@ class Llama:
 
         response = self.chat(prompt=prompt, variables={"preview_text": preview_text})
 
-        # If the model returns "None" or an empty response, return an empty list
+        if not response or not response.strip():
+            logger.warning("Empty response from extract_entities (possible timeout)")
+            return []
+
         if "none" in response.lower():
             return []
 
@@ -155,7 +170,10 @@ class Llama:
             prompt=prompt, variables={"entities": entities, "categories": categories}
         )
 
-        # Safely parse the JSON response
+        if not response or not response.strip():
+            logger.warning("Empty response from classify_entities (possible timeout)")
+            return {}
+
         classification = self._safe_parse_json(response, fallback_value={})
 
         # Ensure we return a dictionary
