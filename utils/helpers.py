@@ -633,12 +633,13 @@ async def _safe_mark_case_failed(case_id: str, error_message: str):
 
 
 @with_db_retry(max_retries=5, delay=2)
-async def _finalize_case_processing(case_id: str):
+async def _finalize_case_processing(case_id: str, cases_collection=None):
     """Record processing_completed_at and total_processing_time on the case."""
+    col = cases_collection or collection_case
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
 
-    case = await collection_case.find_one(
+    case = await col.find_one(
         {"_id": ObjectId(case_id)}, {"processing_started_at": 1}
     )
 
@@ -664,7 +665,7 @@ async def _finalize_case_processing(case_id: str):
         except (ValueError, TypeError) as e:
             logger.warning(f"Could not parse processing_started_at for case {case_id}: {e}")
 
-    await collection_case.find_one_and_update(
+    await col.find_one_and_update(
         {"_id": ObjectId(case_id)},
         {"$set": update_fields},
     )

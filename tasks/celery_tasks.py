@@ -57,12 +57,18 @@ class DatabaseTask(Task):
             self._db = self._client[self._db_name]
         return self._db
 
-@celery_app.task(name="tasks.celery_tasks.finalize_case_processing_task")
-def finalize_case_processing_task(case_id):
+@celery_app.task(
+    base=DatabaseTask,
+    bind=True,
+    name="tasks.celery_tasks.finalize_case_processing_task",
+)
+def finalize_case_processing_task(self, case_id):
     """Record processing_completed_at and total_processing_time on the case document."""
     try:
         logger.info(f"Starting finalize_case_processing_task for case {case_id}")
-        run_async(_finalize_case_processing(case_id))
+        db = self.db
+        case_collection = db["cases"]
+        run_async(_finalize_case_processing(case_id, case_collection))
         logger.info(f"Case processing finalized for case {case_id}")
         return {"status": "completed", "case_id": case_id}
     except Exception as e:
