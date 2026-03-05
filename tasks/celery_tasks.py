@@ -61,10 +61,13 @@ class DatabaseTask(Task):
 def finalize_case_processing_task(case_id):
     """Record processing_completed_at and total_processing_time on the case document."""
     try:
+        logger.info(f"Starting finalize_case_processing_task for case {case_id}")
         run_async(_finalize_case_processing(case_id))
         logger.info(f"Case processing finalized for case {case_id}")
+        return {"status": "completed", "case_id": case_id}
     except Exception as e:
         logger.error(f"Error finalizing case processing for {case_id}: {e}")
+        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(

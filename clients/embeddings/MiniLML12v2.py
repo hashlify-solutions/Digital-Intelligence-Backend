@@ -42,25 +42,30 @@ class MiniLML12V2Client:
         if isinstance(texts, str):
             texts = [texts]
         
-        inputs = self.tokenizer(
-            texts,
-            padding=True,
-            truncation=True,
-            max_length=128,
-            return_tensors="pt"
-        )
-        
-        # Move inputs to device
-        if self.device == "cuda":
-            inputs = {k: v.cuda() for k, v in inputs.items()}
-        
-        # Use inference_mode (faster than no_grad) for inference
-        with torch.inference_mode():
-            outputs = self.model(**inputs)
-        
-        embeddings = self.mean_pooling(outputs, inputs['attention_mask'])
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-        return embeddings.detach().cpu().numpy().tolist()
+        try:
+            inputs = self.tokenizer(
+                texts,
+                padding=True,
+                truncation=True,
+                max_length=128,
+                return_tensors="pt"
+            )
+            
+            if self.device == "cuda":
+                inputs = {k: v.cuda() for k, v in inputs.items()}
+            
+            with torch.inference_mode():
+                outputs = self.model(**inputs)
+            
+            embeddings = self.mean_pooling(outputs, inputs['attention_mask'])
+            embeddings = F.normalize(embeddings, p=2, dim=1)
+            return embeddings.detach().cpu().numpy().tolist()
+        except RuntimeError as e:
+            if self.device == "cuda":
+                logger.error(f"CUDA error during embedding generation, clearing GPU state: {e}")
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+            raise
 
     def create_embeddings_batch(
         self, 

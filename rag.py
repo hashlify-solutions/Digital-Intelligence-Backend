@@ -4,6 +4,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from setup import setup_logging
 import numpy as np
+import torch
 from typing import List
 from model_registry import ModelRegistry
 
@@ -41,6 +42,9 @@ class ArabicRagAnalyzer:
             return normalized_embedding.tolist() if isinstance(normalized_embedding, np.ndarray) else normalized_embedding
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
             return None
 
     def normalize_embedding(self, embedding):

@@ -119,7 +119,10 @@ base_config = {
         },  # Route generate_video_frame_description_llava_task to image_description_generation queue
         "tasks.celery_tasks.generate_video_description_task": {
             "queue": "video_description_generation"
-        } # Route generate_video_description_task to video_description_generation queue
+        },
+        "tasks.celery_tasks.finalize_case_processing_task": {
+            "queue": "ufdr_processing"
+        },
     },
     # Task time limits
     "task_soft_time_limit": 3600,  # 1 hour soft limit for tasks
