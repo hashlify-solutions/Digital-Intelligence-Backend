@@ -71,15 +71,16 @@ class Llava:
                     }
                 ]
             )
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(self.llm.invoke, [message])
-                try:
-                    response = future.result(timeout=self.timeout)
-                    return response.content.strip()
-                except FuturesTimeoutError:
-                    logger.error(f"Llava describe_image timed out after {self.timeout}s for {image_path}")
-                    future.cancel()
-                    return None
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(self.llm.invoke, [message])
+            try:
+                response = future.result(timeout=self.timeout)
+                return response.content.strip()
+            except FuturesTimeoutError:
+                logger.error(f"Llava describe_image timed out after {self.timeout}s for {image_path}")
+                return None
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         except Exception as e:
             logger.error(f"Error describing image with Llava: {str(e)}")

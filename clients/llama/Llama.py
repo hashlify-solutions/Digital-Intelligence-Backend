@@ -96,18 +96,19 @@ class Llama:
             timeout=self.timeout,
         )
         llm_chain = prompt | llm | StrOutputParser()
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(llm_chain.invoke, variables)
-            try:
-                answer = future.result(timeout=self.timeout)
-                return answer
-            except FuturesTimeoutError:
-                logger.error(f"Llama chat timed out after {self.timeout}s")
-                future.cancel()
-                return ""
-            except Exception as e:
-                logger.error(f"Llama chat error: {e}")
-                return ""
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(llm_chain.invoke, variables)
+        try:
+            answer = future.result(timeout=self.timeout)
+            return answer
+        except FuturesTimeoutError:
+            logger.error(f"Llama chat timed out after {self.timeout}s")
+            return ""
+        except Exception as e:
+            logger.error(f"Llama chat error: {e}")
+            return ""
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def extract_entities(self, preview_text: str):
         prompt = """Extract entities (names, locations, organizations, and other key information) from the following text:

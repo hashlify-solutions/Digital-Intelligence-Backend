@@ -75,14 +75,15 @@ class LlamaClient:
             )
             
             llm_chain = prompt | llm | StrOutputParser()
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(llm_chain.invoke, self.variables)
-                try:
-                    answer = future.result(timeout=self.timeout)
-                except FuturesTimeoutError:
-                    logger.error(f"LlamaClient chat timed out after {self.timeout}s")
-                    future.cancel()
-                    return "عذراً، انتهت مهلة الاستجابة. يرجى المحاولة مرة أخرى."
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(llm_chain.invoke, self.variables)
+            try:
+                answer = future.result(timeout=self.timeout)
+            except FuturesTimeoutError:
+                logger.error(f"LlamaClient chat timed out after {self.timeout}s")
+                return "عذراً، انتهت مهلة الاستجابة. يرجى المحاولة مرة أخرى."
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
             
             if not answer or len(answer.strip()) == 0:
                 logger.warning("Empty response from LLM")
@@ -96,14 +97,15 @@ class LlamaClient:
     
     def _invoke_with_timeout(self, llm_chain, variables: dict) -> Optional[str]:
         """Invoke an LLM chain with a Python-level timeout safety net."""
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(llm_chain.invoke, variables)
-            try:
-                return future.result(timeout=self.timeout)
-            except FuturesTimeoutError:
-                logger.error(f"LlamaClient validation timed out after {self.timeout}s")
-                future.cancel()
-                return None
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(llm_chain.invoke, variables)
+        try:
+            return future.result(timeout=self.timeout)
+        except FuturesTimeoutError:
+            logger.error(f"LlamaClient validation timed out after {self.timeout}s")
+            return None
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def validate_classification_result(self, text: str, all_classes: List[str], classfication_result: Dict[str, Any]) -> Optional[float]:
         """Validate the classification result for the given text against all classes and return a score out of 10"""
