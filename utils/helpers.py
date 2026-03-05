@@ -635,7 +635,7 @@ async def _safe_mark_case_failed(case_id: str, error_message: str):
 @with_db_retry(max_retries=5, delay=2)
 async def _finalize_case_processing(case_id: str, cases_collection=None):
     """Record processing_completed_at and total_processing_time on the case."""
-    col = cases_collection or collection_case
+    col = cases_collection if cases_collection is not None else collection_case
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
 
