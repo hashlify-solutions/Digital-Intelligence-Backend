@@ -124,7 +124,7 @@ async def upload_case_data(
             file_extension = file.filename.split(".")[-1].lower()
             file_name = file.filename
 
-        if file_extension not in ["csv", "ufdr"]:
+        if file_extension not in ["csv", "ufdr", "ufd"]:
             raise HTTPException(
                 status_code=400, detail="Only CSV or UFDR files are allowed."
             )
