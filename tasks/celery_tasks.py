@@ -749,10 +749,10 @@ def process_ufdr_upload(
             ),
             
             # Phase 4: Video frame + video description (needs segmented frames from Branch A)
-            generate_video_frame_description_llava_task.si(*llava_args),
+            # generate_video_frame_description_llava_task.si(*llava_args),
             
-            # Phase 5: Aggregate video descriptions
-            generate_video_description_task.si(*video_desc_args),
+            # # Phase 5: Aggregate video descriptions
+            # generate_video_description_task.si(*video_desc_args),
 
             # Phase 6: Record total processing time
             finalize_case_processing_task.si(case_id),
