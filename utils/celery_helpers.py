@@ -2739,7 +2739,7 @@ async def process_csv_upload_v1_helper(
         # Choosing appropriate ingester based on file extension
         if file_extension == "csv":
             ingester = CSVIngester(collection, collection_case, case_id, models_profile)
-        elif file_extension == "ufdr":
+        elif file_extension == "ufdr" or file_extension == "ufd":
             ingester = UFDRIngester(
                 collection, collection_case, case_id, models_profile
             )
@@ -2795,7 +2795,7 @@ async def process_csv_upload_v1_helper(
         #     )
 
         # Triggering the ufdr media processing pipeline
-        if file_extension == "ufdr":
+        if file_extension == "ufdr" or file_extension == "ufd":
             # Lazy import to avoid circular dependency issues
             from tasks.celery_tasks import process_ufdr_upload
 
