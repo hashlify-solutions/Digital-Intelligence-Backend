@@ -297,8 +297,8 @@ def extract_ufdr_file_task(input_ufdr_path, output_ufdr_path):
         ufdr_extracter = UfdrExtracter()
         ufdr_extracter.extract_ufdr(input_ufdr_path, output_ufdr_path)
         # removing the input UFDR file after extraction
-        if os.path.exists(input_ufdr_path):
-            os.remove(input_ufdr_path)
+        # if os.path.exists(input_ufdr_path):
+        #     os.remove(input_ufdr_path)
         return {"status": "completed", "output_ufdr_path": output_ufdr_path}
     except Exception as e:
         logger.error(f"Error in extract_ufdr_file_task task: {str(e)}")

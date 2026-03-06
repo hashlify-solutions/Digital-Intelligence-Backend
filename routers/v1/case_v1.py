@@ -74,7 +74,7 @@ def sanitize_nan_values(data: dict) -> dict:
 # Routes
 @router.post("/upload-data", response_model=dict)
 async def upload_case_data(
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
     topics: list[str] = Form(...),
     sentiments: list[str] = Form(...),
     interactions: list[str] = Form(...),
@@ -86,27 +86,54 @@ async def upload_case_data(
     alert_id: Optional[str] = Form(None),
     is_rag: bool = Form(),
     models_profile_id: Optional[str] = Form(None),
-    llama_basic_params: Optional[str] = Form(None),  # JSON string from frontend
+    llama_basic_params: Optional[str] = Form(None),
     llama_advanced_params: Optional[str] = Form(None),
     user_id: str = Depends(get_current_user),
     areaZone: Optional[str] = Form(None),
     is_llama_validation_enabled: Optional[bool] = Form(False),
+    use_local_file_path: bool = Form(False),
+    local_file_path: Optional[str] = Form(None),
+    local_folder_path: Optional[str] = Form(None),
 ):
     try:
-        # Validating the CSV or UFDR file extenstion
-        file_extension = file.filename.split(".")[-1].lower()
+        # Validate inputs based on whether we use a local path or an uploaded file
+        if use_local_file_path:
+            if not local_file_path or not local_folder_path:
+                raise HTTPException(
+                    status_code=400,
+                    detail="local_file_path and local_folder_path are required when use_local_file_path is true.",
+                )
+            if not os.path.isfile(local_file_path):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"local_file_path does not exist: {local_file_path}",
+                )
+            if not os.path.isdir(local_folder_path):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"local_folder_path does not exist: {local_folder_path}",
+                )
+            file_extension = local_file_path.rsplit(".", 1)[-1].lower()
+            file_name = os.path.basename(local_file_path)
+        else:
+            if file is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="file is required when use_local_file_path is false.",
+                )
+            file_extension = file.filename.split(".")[-1].lower()
+            file_name = file.filename
+
         if file_extension not in ["csv", "ufdr"]:
             raise HTTPException(
                 status_code=400, detail="Only CSV or UFDR files are allowed."
             )
 
-        # Validating the case name existance
         if not caseName:
             raise HTTPException(
                 status_code=400, detail="Case name is required for creating a new case."
             )
 
-        # Validating the topics, sentiments and interactions list lenght in case of is_rag
         if is_rag:
             if len(topics) == 0 or len(sentiments) == 0 or len(interactions) == 0:
                 raise HTTPException(
@@ -114,14 +141,12 @@ async def upload_case_data(
                     detail="Topics, Sentiments, and Interactions are required for RAG data.",
                 )
 
-        # Validating the user existance
         user = await users_collection.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        logger.info(f"Uploading file: {file.filename}")
+        logger.info(f"Processing file: {file_name} (local={use_local_file_path})")
 
-        # Converting the topics, sentiments and interactions list to a list of strings
         topics = topics[0].split(",") if topics and topics[0].split(",") != "" else []
         sentiments = (
             sentiments[0].split(",") if sentiments and sentiments[0] != "" else []
@@ -129,19 +154,16 @@ async def upload_case_data(
         interactions = (
             interactions[0].split(",") if interactions and interactions[0] != "" else []
         )
-        # Converting the entitiesClasses list to a list of strings
         entitiesClasses = (
             entitiesClasses[0].split(",")
             if entitiesClasses and entitiesClasses[0] != ""
             else []
         )
-        # Converting the noteClassifications list to a list of strings
         noteClassifications = (
             noteClassifications[0].split(",")
             if noteClassifications and noteClassifications[0] != ""
             else []
         )
-        # Converting the browsingHistoryClassifications list to a list of strings
         browsingHistoryClassifications = (
             browsingHistoryClassifications[0].split(",")
             if browsingHistoryClassifications
@@ -149,7 +171,6 @@ async def upload_case_data(
             else []
         )
 
-        # Extracting the models profile from models_profile_id if exists otherwise return the default model profile
         if models_profile_id:
             models_profile = await models_master_collection.find_one(
                 {"_id": ObjectId(models_profile_id)}
@@ -161,7 +182,6 @@ async def upload_case_data(
             models_profile = models_profile[0]
             logger.info("Using the default model profile from models_master collection")
 
-        # Creating case record with the required fields and inserting it into the database
         case_data = {
             "name": caseName,
             "status": "pending",
@@ -182,11 +202,10 @@ async def upload_case_data(
         case = await collection_case.insert_one(case_data)
         case_object_id = case.inserted_id
 
-        # Creating the UFDR file record in database in case of a ufdr file upload
         ufdr_file_id = None
         if file_extension == "ufdr":
             ufdr_file_data = {
-                "name": file.filename,
+                "name": file_name,
                 "caseId": case_object_id,
                 "file_size": 0,
                 "created_at": datetime.now(),
@@ -195,42 +214,50 @@ async def upload_case_data(
             ufdr_file = await ufdr_files_collection.insert_one(ufdr_file_data)
             ufdr_file_id = ufdr_file.inserted_id
 
-        # Creating directory path for CSV/UFDR files
-        if file_extension == "csv":
-            folder_path = os.path.join(f"{UPLOAD_DIR}/{caseName}_{case_object_id}/csv")
+        if use_local_file_path:
+            folder_path = local_folder_path
+            file_path = local_file_path
+            local_file_size = os.path.getsize(file_path)
+            logger.info(
+                f"Using local file path: {file_path} (size: {local_file_size / (1024**3):.2f} GB)"
+            )
+            if file_extension == "ufdr" and ufdr_file_id:
+                await ufdr_files_collection.update_one(
+                    {"_id": ufdr_file_id},
+                    {"$set": {"file_size": local_file_size, "updated_at": datetime.now()}},
+                )
         else:
-            folder_path = os.path.join(
-                f"{UPLOAD_DIR}/{caseName}_{case_object_id}/ufdr/{ufdr_file.inserted_id}"
+            if file_extension == "csv":
+                folder_path = os.path.join(f"{UPLOAD_DIR}/{caseName}_{case_object_id}/csv")
+            else:
+                folder_path = os.path.join(
+                    f"{UPLOAD_DIR}/{caseName}_{case_object_id}/ufdr/{ufdr_file.inserted_id}"
+                )
+            Path(folder_path).mkdir(parents=True, exist_ok=True)
+            file_path = os.path.join(folder_path, file.filename)
+            chunk_size = 1024 * 1024
+            total_bytes_written = 0
+            with open(file_path, "wb") as f:
+                while chunk := await file.read(chunk_size):
+                    f.write(chunk)
+                    total_bytes_written += len(chunk)
+                    if total_bytes_written % (1024 * 1024 * 1024) == 0:
+                        logger.info(
+                            f"Written {total_bytes_written / (1024**3):.2f} GB of {file_extension.upper()} file: {file.filename}"
+                        )
+            logger.info(
+                f"Successfully saved {file_extension.upper()} file to: {file_path} (Total size: {total_bytes_written / (1024**3):.2f} GB)"
             )
-        # Writing the csv/ufdr file to the directory in chunks to handle large files efficiently
-        Path(folder_path).mkdir(parents=True, exist_ok=True)
-        file_path = os.path.join(folder_path, file.filename)
-        chunk_size = 1024 * 1024  # 1MB chunks for faster file writing
-        total_bytes_written = 0
-        with open(file_path, "wb") as f:
-            while chunk := await file.read(chunk_size):
-                f.write(chunk)
-                total_bytes_written += len(chunk)
-                # Log progress for very large files every 1GB
-                if total_bytes_written % (1024 * 1024 * 1024) == 0:
-                    logger.info(
-                        f"Written {total_bytes_written / (1024**3):.2f} GB of {file_extension.upper()} file: {file.filename}"
-                    )
-        logger.info(
-            f"Successfully saved {file_extension.upper()} file to: {file_path} (Total size: {total_bytes_written / (1024**3):.2f} GB)"
-        )
-
-        # Updating the UFDR file record with the actual file size
-        if file_extension == "ufdr":
-            await ufdr_files_collection.update_one(
-                {"_id": ufdr_file.inserted_id},
-                {
-                    "$set": {
-                        "file_size": total_bytes_written,
-                        "updated_at": datetime.now(),
-                    }
-                },
-            )
+            if file_extension == "ufdr":
+                await ufdr_files_collection.update_one(
+                    {"_id": ufdr_file.inserted_id},
+                    {
+                        "$set": {
+                            "file_size": total_bytes_written,
+                            "updated_at": datetime.now(),
+                        }
+                    },
+                )
 
         # Parse user-provided params if present
         user_basic_params = json.loads(llama_basic_params) if llama_basic_params else {}
