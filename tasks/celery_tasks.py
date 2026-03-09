@@ -710,12 +710,12 @@ def process_ufdr_upload(
         )
         
         # LLaVA description branch: image desc -> video frame desc -> video desc aggregation
-        llava_workflow = chain(
-            generate_image_description_llava_task.si(*llava_args),
-            # Video frame desc needs segmented frames from detection branch,
-            # but since we can't cross-reference branches in a simple chord,
-            # we place it after image desc for model cache reuse
-        )
+        # llava_workflow = chain(
+        #     generate_image_description_llava_task.si(*llava_args),
+        #     # Video frame desc needs segmented frames from detection branch,
+        #     # but since we can't cross-reference branches in a simple chord,
+        #     # we place it after image desc for model cache reuse
+        # )
         
         # Video description sub-workflow (needs video frames segmented)
         # This runs after the detection branch via a separate chain after the main parallel group
@@ -745,7 +745,7 @@ def process_ufdr_upload(
                 detect_nsfw_images_task.si(ufdr_file_id),
                 
                 # Branch E: LLaVA image descriptions (independent)
-                llava_workflow,
+                # llava_workflow,
             ),
             
             # Phase 4: Video frame + video description (needs segmented frames from Branch A)
